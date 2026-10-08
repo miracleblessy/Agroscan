@@ -1,4 +1,7 @@
 venv/
 backend/venv/
+PlantVillageDataset/
 __pycache__/
 *.pyc
+.venv/
+.env
