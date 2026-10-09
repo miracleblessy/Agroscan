@@ -5,3 +5,10 @@ __pycache__/
 *.pyc
 .venv/
 .env
+
+
+database/agroscan.db
+database/dataset/*
+!database/dataset/README.md
+__pycache__/
+*.pyc
