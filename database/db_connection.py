@@ -47,16 +47,32 @@ def create_tables():
         """, [(name,) for name in CLASSES])
 
 
+def save_prediction(image_name, plant_name, disease_name, confidence):
+    with get_connection() as conn:
+        conn.execute("""
+            INSERT INTO prediction_history
+            (image_name, plant_name, disease_name, confidence)
+            VALUES (?, ?, ?, ?)
+        """, (image_name, plant_name, disease_name, confidence))
+
+
+def get_predictions():
+    with get_connection() as conn:
+        return conn.execute("""
+            SELECT * FROM prediction_history
+            ORDER BY id DESC
+        """).fetchall()
+
+
 def get_supported_classes():
     with get_connection() as conn:
-        return conn.execute(
-            "SELECT class_name FROM supported_classes ORDER BY id"
-        ).fetchall()
+        return conn.execute("""
+            SELECT class_name FROM supported_classes
+            ORDER BY id
+        """).fetchall()
 
 
 if __name__ == "__main__":
     create_tables()
     print("AgroScan database connected successfully!")
-    print("Supported classes:")
-    for row in get_supported_classes():
-        print(row["class_name"])
+    print("Supported classes:", len(get_supported_classes()))
