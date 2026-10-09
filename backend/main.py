@@ -1,24 +1,34 @@
 
 from pathlib import Path
+from io import BytesIO
+import sys
 
 import numpy as np
 import tensorflow as tf
 from PIL import Image
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from io import BytesIO
 
 app = FastAPI(title="AgroScan API")
 
-# Locate the ML files from the project directory
+# Project paths
 BASE_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = BASE_DIR / "model" / "plant_disease_model.keras"
 CLASS_NAMES_PATH = BASE_DIR / "model" / "class_names.txt"
 
-# Load the trained model and class names
+# Import the shared database functions
+sys.path.insert(0, str(BASE_DIR))
+from database.db_connection import create_tables, save_prediction
+
+# Load trained model and class names
 model = tf.keras.models.load_model(MODEL_PATH)
 
 with open(CLASS_NAMES_PATH, "r", encoding="utf-8") as f:
     class_names = [line.strip() for line in f if line.strip()]
+
+
+@app.on_event("startup")
+def initialize_database():
+    create_tables()
 
 
 @app.get("/")
@@ -28,7 +38,9 @@ def home():
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
-    if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
+    if file.content_type not in (
+        "image/jpeg", "image/png", "image/webp"
+    ):
         raise HTTPException(
             status_code=400,
             detail="Please upload a JPG, PNG, or WEBP image."
@@ -51,10 +63,23 @@ async def predict(file: UploadFile = File(...)):
             )
 
         predicted_index = int(np.argmax(predictions))
+        disease = class_names[predicted_index]
         confidence = float(predictions[predicted_index])
 
+        # Extract plant name from the model class label
+        plant_name = disease.split("___")[0].replace("_", " ")
+
+        # Save prediction in SQLite history
+        save_prediction(
+            image_name=Path(file.filename or "uploaded_image").name,
+            plant_name=plant_name,
+            disease_name=disease,
+            confidence=confidence
+        )
+
         return {
-            "disease": class_names[predicted_index],
+            "plant": plant_name,
+            "disease": disease,
             "confidence": round(confidence, 4),
             "message": "Prediction generated successfully"
         }
