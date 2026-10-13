@@ -17,6 +17,9 @@ function App() {
   const [leaf, setLeaf] = useState(null)
   const [preview, setPreview] = useState('')
   const [analysed, setAnalysed] = useState(false)
+  const [result, setResult] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   // Release the preview URL when the component unmounts
   useEffect(() => {
@@ -59,16 +62,52 @@ function App() {
     setAnalysed(false)
   }
 
-  const startAnalysis = () => {
-    if (!leaf) {
-      alert('Please upload a leaf image first.')
-      setPage('upload')
-      return
+  
+const startAnalysis = async () => {
+  if (!leaf) {
+    alert('Please upload a leaf image first.')
+    setPage('upload')
+    return
+  }
+
+  setLoading(true)
+  setError('')
+  setResult(null)
+
+  try {
+    const formData = new FormData()
+    formData.append('file', leaf)
+
+    const response = await fetch(
+      'http://127.0.0.1:8000/predict',
+      {
+        method: 'POST',
+        body: formData,
+      }
+    )
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(
+        data.detail || 'Prediction failed. Please try again.'
+      )
     }
 
+    setResult(data)
     setAnalysed(true)
     setPage('result')
+    } catch (err) {
+    setError(
+      err.message === 'Failed to fetch'
+        ? 'Cannot connect to the backend. Please check that the API is running.'
+        : err.message
+    )
+    } finally {
+    setLoading(false)
+   }
   }
+
 
   const title =
     menu.find((item) => item.id === page)?.label || 'Home'
@@ -469,36 +508,46 @@ function App() {
 
                 <div className="panel result-summary">
                   <span className="result-label">
-                    {analysed ? 'DEMO ANALYSIS' : 'IMAGE READY'}
+                    {analysed ? 'AI ANALYSIS COMPLETE' : 'IMAGE READY'}
                   </span>
 
                   <h2>
-                    {analysed
-                      ? 'Demo result — not AI verified'
+                    {result
+                      ? result.disease
+                          .replaceAll('_', ' ')
+                          .replace(result.plant, '')
+                          .trim()
+                          .replace(/\b\w/g, (char) => char.toUpperCase())
                       : 'Ready for analysis'}
                   </h2>
 
                   <p>
-                    {analysed
-                      ? 'This frontend demonstrates the result screen. A real disease prediction requires connection to your project model or backend.'
-                      : 'Your image is ready. Run the demo analysis to view this result layout.'}
+                    {result
+                       ? `AI detected ${result.disease.replaceAll('_', ' ').replace(result.plant, '').trim()} in your ${result.plant} leaf.`
+                       : 'Your image is ready. Run the analysis to view the result.'}
                   </p>
 
                   <div className="result-metric">
                     <span>Prediction status</span>
                     <strong>
-                      {analysed ? 'Demo only' : 'Pending'}
+                      {result ? 'AI prediction completed' : 'Pending'}
                     </strong>
                   </div>
 
+                  
                   <div className="result-metric">
                     <span>Model confidence</span>
-                    <strong>Not available</strong>
+                    <strong>
+                      {result
+                        ? `${(result.confidence * 100).toFixed(2)}%`
+                        : 'Not available'}
+                    </strong>
                   </div>
 
+
                   <div className="notice-box">
-                    ⓘ This UI does not make a real crop disease
-                    diagnosis yet.
+                    ⓘ AI prediction based on the uploaded leaf image.
+                    Results may not always be accurate.
                   </div>
 
                   <button
