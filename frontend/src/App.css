@@ -273,3 +273,18 @@ h1 { font: 800 27px Manrope, sans-serif; letter-spacing: -.8px; margin: 0 0 8px;
   .history-row { flex-wrap: wrap; }
   .footer { flex-direction: column; }
 }
+
+.treatment-title {
+  color: #14532d;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.4;
+  letter-spacing: 0.3px;
+  margin: 16px 0;
+}
+
+@media (max-width: 600px) {
+  .treatment-title {
+    font-size: 24px;
+  }
+}
