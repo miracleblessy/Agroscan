@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 
+const API = 'http://127.0.0.1:8000'
+
 const menu = [
   { id: 'home', icon: '⌂', label: 'Home' },
   { id: 'upload', icon: '↥', label: 'Upload Leaf Image' },
@@ -13,14 +15,239 @@ const menu = [
   { id: 'team', icon: '♧', label: 'Team' },
 ]
 
+function formatScan(item, preview = '') {
+  return {
+    id: item.id,
+    name: item.image_name,
+    preview,
+    date: item.created_at,
+    result: {
+      plant: item.plant_name,
+      disease: item.disease_name,
+      confidence: item.confidence,
+    },
+  }
+}
+
+// Disease-wise treatment recommendations
+function getTreatmentGuide(scanResult) {
+  if (!scanResult) {
+    return {
+      title: 'Upload a leaf to get recommendations',
+      description: 'Analyze a crop leaf image first. Treatment guidance will be displayed based on the AI prediction.',
+      steps: [
+        ['01', 'Upload a leaf image', 'Choose a clear image of the affected crop leaf.'],
+        ['02', 'Run AI detection', 'Allow the AI model to analyze the uploaded image.'],
+        ['03', 'View recommendations', 'Open this page again to see crop-specific guidance.'],
+      ],
+      tips: [
+        'Use clear leaf images',
+        'Inspect crops regularly',
+        'Keep farming tools clean',
+        'Monitor plant health',
+      ],
+    }
+  }
+
+  const disease = String(scanResult.disease || '')
+    .toLowerCase()
+    .replaceAll('_', ' ')
+    .trim()
+
+  const plant = scanResult.plant || 'your crop'
+
+  const guides = {
+    healthy: {
+      title: `${plant} - Healthy Crop Care`,
+      description: `The AI prediction indicates a healthy ${plant} leaf. Continue regular crop care and monitor the plant.`,
+      steps: [
+        ['01', 'Continue regular watering', 'Water according to the crop and soil moisture needs.'],
+        ['02', 'Maintain soil health', 'Use suitable compost and maintain soil nutrients.'],
+        ['03', 'Inspect leaves regularly', 'Check for unusual spots, discoloration, or insects.'],
+        ['04', 'Maintain crop hygiene', 'Remove dead plant material and keep the growing area clean.'],
+      ],
+      tips: [
+        'Water according to crop needs',
+        'Provide suitable sunlight',
+        'Maintain healthy soil',
+        'Monitor new leaf growth',
+      ],
+    },
+
+    'apple scab': {
+      title: 'Apple Scab - Treatment Guide',
+      description: `The AI prediction indicates possible Apple Scab in your ${plant} leaf. Look for dark or olive-coloured spots.`,
+      steps: [
+        ['01', 'Inspect affected leaves', 'Check leaves for dark, olive-coloured spots.'],
+        ['02', 'Remove fallen leaves', 'Collect fallen infected leaves and dispose of them responsibly.'],
+        ['03', 'Improve air circulation', 'Avoid overcrowding and prune appropriately.'],
+        ['04', 'Get expert advice', 'Ask an agricultural expert to confirm the disease and suggest treatment.'],
+      ],
+      tips: [
+        'Remove fallen infected leaves',
+        'Avoid overcrowding plants',
+        'Keep the growing area clean',
+        'Inspect leaves after rainfall',
+      ],
+    },
+
+    'powdery mildew': {
+      title: 'Powdery Mildew - Treatment Guide',
+      description: `The AI prediction indicates possible Powdery Mildew in your ${plant} leaf. It may appear as a white powder-like coating.`,
+      steps: [
+        ['01', 'Check affected areas', 'Inspect both sides of leaves for white powdery patches.'],
+        ['02', 'Remove affected parts', 'Remove severely affected leaves when appropriate using clean tools.'],
+        ['03', 'Improve air circulation', 'Provide enough space between plants.'],
+        ['04', 'Consult an expert', 'Confirm the disease before choosing a treatment.'],
+      ],
+      tips: [
+        'Check for white powdery patches',
+        'Provide proper plant spacing',
+        'Avoid excessive shade',
+        'Clean tools after use',
+      ],
+    },
+
+    rust: {
+      title: `${plant} - Rust Disease Guide`,
+      description: `The AI prediction indicates possible rust disease in your ${plant} leaf. Rust may appear as orange, yellow, or brown powdery spots.`,
+      steps: [
+        ['01', 'Inspect leaf surfaces', 'Look for orange or brown powdery spots.'],
+        ['02', 'Remove badly affected leaves', 'Remove severely affected leaves when appropriate.'],
+        ['03', 'Avoid wet foliage', 'Water near the soil instead of wetting leaves.'],
+        ['04', 'Seek expert advice', 'Confirm the disease and suitable control measures with an expert.'],
+      ],
+      tips: [
+        'Check leaves for rust-coloured spots',
+        'Avoid wetting foliage',
+        'Maintain plant spacing',
+        'Remove fallen infected leaves',
+      ],
+    },
+
+    blight: {
+      title: `${plant} - Blight Disease Guide`,
+      description: `The AI prediction indicates possible blight in your ${plant} leaf. Watch for spreading brown or dark damaged areas.`,
+      steps: [
+        ['01', 'Identify damaged areas', 'Check leaves for brown or black patches.'],
+        ['02', 'Remove affected material', 'Remove severely damaged plant parts when appropriate.'],
+        ['03', 'Keep foliage dry', 'Avoid overhead watering where possible.'],
+        ['04', 'Get disease confirmation', 'Consult an agricultural expert for suitable treatment.'],
+      ],
+      tips: [
+        'Avoid overhead watering',
+        'Remove fallen plant debris',
+        'Check nearby plants',
+        'Disinfect gardening tools',
+      ],
+    },
+
+    'leaf spot': {
+      title: `${plant} - Leaf Spot Guide`,
+      description: `The AI prediction indicates possible leaf spot disease in your ${plant}. Look for distinct spots or lesions on leaves.`,
+      steps: [
+        ['01', 'Examine leaf spots', 'Observe the colour, size, and spread of the spots.'],
+        ['02', 'Remove badly affected leaves', 'Remove severely affected leaves when appropriate.'],
+        ['03', 'Improve plant spacing', 'Allow enough space for air movement.'],
+        ['04', 'Consult an expert', 'Get the disease confirmed before applying treatment.'],
+      ],
+      tips: [
+        'Inspect leaves for new spots',
+        'Keep foliage as dry as practical',
+        'Maintain proper plant spacing',
+        'Clean tools regularly',
+      ],
+    },
+
+    mosaic: {
+      title: `${plant} - Mosaic Disease Guide`,
+      description: `The AI prediction indicates possible mosaic disease in your ${plant}. Look for unusual leaf patterns, mottling, or distortion.`,
+      steps: [
+        ['01', 'Check leaf patterns', 'Look for yellow-green patches and unusual leaf shapes.'],
+        ['02', 'Inspect nearby plants', 'Check other plants for similar symptoms.'],
+        ['03', 'Check for insect activity', 'Observe plants for insects that may spread plant viruses.'],
+        ['04', 'Seek expert confirmation', 'Ask an agricultural expert about the suspected viral disease.'],
+      ],
+      tips: [
+        'Monitor unusual leaf patterns',
+        'Check plants for insect activity',
+        'Clean tools between plants',
+        'Inspect nearby crops regularly',
+      ],
+    },
+
+    rot: {
+      title: `${plant} - Rot Disease Guide`,
+      description: `The AI prediction indicates possible rot disease in your ${plant}. Check for soft, discoloured, or decaying plant tissue.`,
+      steps: [
+        ['01', 'Inspect damaged areas', 'Look for soft, dark, or decaying plant tissue.'],
+        ['02', 'Check soil moisture', 'Avoid keeping the soil excessively wet.'],
+        ['03', 'Improve drainage', 'Make sure excess water can drain away.'],
+        ['04', 'Get expert advice', 'Confirm the cause of the rot with an agricultural expert.'],
+      ],
+      tips: [
+        'Avoid waterlogging',
+        'Maintain proper soil drainage',
+        'Remove decaying plant material',
+        'Monitor soil moisture',
+      ],
+    },
+  }
+
+  if (disease.includes('healthy')) return guides.healthy
+  if (disease.includes('apple scab')) return guides['apple scab']
+  if (disease.includes('powdery mildew')) return guides['powdery mildew']
+  if (disease.includes('rust')) return guides.rust
+  if (disease.includes('blight')) return guides.blight
+  if (disease.includes('leaf spot') || disease.includes('spot')) return guides['leaf spot']
+  if (disease.includes('mosaic')) return guides.mosaic
+  if (disease.includes('rot')) return guides.rot
+
+  return {
+    title: `${disease.replace(/\b\w/g, (char) => char.toUpperCase())} - Treatment Guide`,
+    description: `The AI prediction indicates possible ${disease} in your ${plant} leaf. Confirm the disease with an agricultural expert.`,
+    steps: [
+      ['01', 'Inspect affected leaves', 'Check the symptoms and observe whether they are spreading.'],
+      ['02', 'Check nearby plants', 'Look for similar symptoms in surrounding crops.'],
+      ['03', 'Maintain crop hygiene', 'Remove dead plant material and keep tools clean.'],
+      ['04', 'Get expert advice', 'Ask an agricultural expert to confirm the disease and suitable treatment.'],
+    ],
+    tips: [
+      'Monitor the affected leaves',
+      'Inspect nearby crops',
+      'Keep gardening tools clean',
+      'Follow local agricultural advice',
+    ],
+  }
+}
+
 function App() {
   const [page, setPage] = useState('home')
   const [leaf, setLeaf] = useState(null)
   const [preview, setPreview] = useState('')
   const [analysed, setAnalysed] = useState(false)
   const [result, setResult] = useState(null)
+  const [scanHistory, setScanHistory] = useState([])
+  const [selectedScan, setSelectedScan] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // Load saved history from SQLite database when page opens
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const response = await fetch(`${API}/history`)
+        if (!response.ok) throw new Error('History loading failed')
+
+        const data = await response.json()
+        setScanHistory(data.map((item) => formatScan(item)))
+      } catch (err) {
+        console.error('History error:', err)
+      }
+    }
+
+    loadHistory()
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -48,6 +275,7 @@ function App() {
     setPreview(URL.createObjectURL(file))
     setAnalysed(false)
     setResult(null)
+    setSelectedScan(null)
     setError('')
   }
 
@@ -56,6 +284,8 @@ function App() {
     setPreview('')
     setAnalysed(false)
     setResult(null)
+    setSelectedScan(null)
+    setError('')
   }
 
   const startAnalysis = async () => {
@@ -73,7 +303,7 @@ function App() {
       const formData = new FormData()
       formData.append('file', leaf)
 
-      const response = await fetch('http://127.0.0.1:8000/predict', {
+      const response = await fetch(`${API}/predict`, {
         method: 'POST',
         body: formData,
       })
@@ -86,6 +316,31 @@ function App() {
 
       setResult(data)
       setAnalysed(true)
+
+      // Get latest saved records from database
+      const historyResponse = await fetch(`${API}/history`)
+
+      if (!historyResponse.ok) {
+        throw new Error('Prediction completed, but history could not load.')
+      }
+
+      const historyData = await historyResponse.json()
+
+      const scans = historyData.map((item, index) =>
+        formatScan(item, index === 0 ? preview : '')
+      )
+
+      setScanHistory(scans)
+
+      const latestScan = scans[0]
+      setSelectedScan(latestScan || {
+        id: Date.now(),
+        name: leaf.name,
+        preview,
+        date: new Date().toLocaleString(),
+        result: data,
+      })
+
       setPage('result')
     } catch (err) {
       setError(
@@ -98,7 +353,29 @@ function App() {
     }
   }
 
+  const openScan = (scan) => {
+    setSelectedScan(scan)
+    setResult(scan.result)
+    setPreview(scan.preview || '')
+    setAnalysed(true)
+    setPage('result')
+  }
+
   const title = menu.find((item) => item.id === page)?.label || 'Home'
+
+  const totalScans = scanHistory.length
+  const healthyScans = scanHistory.filter((scan) =>
+    scan.result.disease.toLowerCase().includes('healthy')
+  ).length
+  const diseaseAlerts = totalScans - healthyScans
+
+  const displayScan = selectedScan
+    ? selectedScan
+    : result
+      ? { name: leaf?.name || 'Uploaded leaf', preview, result }
+      : null
+
+  const treatmentGuide = getTreatmentGuide(displayScan?.result || result)
 
   return (
     <div className="app-shell">
@@ -200,15 +477,15 @@ function App() {
             </div>
 
             <div className="section-heading">
-              <div><h2>Overview</h2><p>Your crop health at a glance</p></div>
-              <span className="muted-label">Sample dashboard data</span>
+              <div><h2>Overview</h2><p>Your saved crop scans at a glance</p></div>
+              <span className="muted-label">Live database data</span>
             </div>
 
             <div className="stats-grid">
-              <StatCard icon="⌁" color="mint" label="Total Scans" value="128" note="Sample data" />
-              <StatCard icon="♡" color="lime" label="Healthy Crops" value="86" note="Sample data" />
-              <StatCard icon="⚠" color="peach" label="Diseases Detected" value="42" note="Sample data" />
-              <StatCard icon="✚" color="lavender" label="Treatments Given" value="36" note="Sample data" />
+              <StatCard icon="⌁" color="mint" label="Total Scans" value={totalScans} note="Saved scans" />
+              <StatCard icon="♡" color="lime" label="Healthy Crops" value={healthyScans} note="Healthy predictions" />
+              <StatCard icon="⚠" color="peach" label="Diseases Detected" value={diseaseAlerts} note="Disease predictions" />
+              <StatCard icon="✚" color="lavender" label="Treatments Given" value={diseaseAlerts} note="Scans needing review" />
             </div>
 
             <div className="bottom-grid">
@@ -217,9 +494,24 @@ function App() {
                   <div><h3>Recent Activity</h3><p>Your latest crop scans</p></div>
                   <button className="text-button" onClick={() => setPage('history')}>View history →</button>
                 </div>
-                <Activity icon="🍃" name="Tomato leaf scan" date="Sample activity" tag="Healthy" good />
-                <Activity icon="🌿" name="Rice leaf scan" date="Sample activity" tag="Leaf Blast" />
-                <Activity icon="🍃" name="Chilli leaf scan" date="Sample activity" tag="Leaf Spot" />
+
+                {scanHistory.length > 0 ? (
+                  scanHistory.slice(0, 3).map((scan) => (
+                    <Activity
+                      key={scan.id}
+                      icon="🌿"
+                      name={scan.name}
+                      date={scan.date}
+                      tag={scan.result.disease.replaceAll('_', ' ')}
+                    />
+                  ))
+                ) : (
+                  <EmptyState
+                    text="Your saved scans will appear here."
+                    button="Upload a leaf"
+                    onClick={() => setPage('upload')}
+                  />
+                )}
               </div>
 
               <div className="panel tip-panel">
@@ -285,35 +577,43 @@ function App() {
           <section className="page-content">
             <PageHeading eyebrow="ANALYSIS SUMMARY" title="Detection Result" description="Review the crop health assessment." />
 
-            {!leaf ? (
-              <EmptyState text="No leaf image selected yet." button="Upload a leaf image" onClick={() => setPage('upload')} />
+            {!displayScan ? (
+              <EmptyState text="No scan selected yet." button="Upload a leaf image" onClick={() => setPage('upload')} />
             ) : (
               <div className="result-layout">
                 <div className="panel result-image-panel">
                   <h3>Uploaded Leaf</h3>
-                  <img className="result-image" src={preview} alt="Uploaded crop leaf" />
-                  <div className="image-caption"><span className="online-dot" /> Image uploaded successfully</div>
+                  {displayScan.preview ? (
+                    <img className="result-image" src={displayScan.preview} alt="Uploaded crop leaf" />
+                  ) : (
+                    <div className="activity-icon">🌿</div>
+                  )}
+                  <div className="image-caption"><span className="online-dot" /> {displayScan.name}</div>
                 </div>
 
                 <div className="panel result-summary">
-                  <span className="result-label">{analysed ? 'AI ANALYSIS COMPLETE' : 'IMAGE READY'}</span>
+                  <span className="result-label">AI ANALYSIS COMPLETE</span>
                   <h2>
-                    {result
-                      ? result.disease.replaceAll('_', ' ').replace(result.plant, '').trim().replace(/\b\w/g, (char) => char.toUpperCase())
-                      : 'Ready for analysis'}
+                    {displayScan.result.disease
+                      .replaceAll('_', ' ')
+                      .replace(displayScan.result.plant, '')
+                      .trim()
+                      .replace(/\b\w/g, (char) => char.toUpperCase())}
                   </h2>
                   <p>
-                    {result
-                      ? `AI detected ${result.disease.replaceAll('_', ' ').replace(result.plant, '').trim()} in your ${result.plant} leaf.`
-                      : 'Your image is ready. Run the analysis to view the result.'}
+                    AI detected {displayScan.result.disease.replaceAll('_', ' ')} in your {displayScan.result.plant} leaf.
                   </p>
                   <div className="result-metric">
+                    <span>Crop</span>
+                    <strong>{displayScan.result.plant}</strong>
+                  </div>
+                  <div className="result-metric">
                     <span>Prediction status</span>
-                    <strong>{result ? 'AI prediction completed' : 'Pending'}</strong>
+                    <strong>AI prediction completed</strong>
                   </div>
                   <div className="result-metric">
                     <span>Model confidence</span>
-                    <strong>{result ? `${(result.confidence * 100).toFixed(2)}%` : 'Not available'}</strong>
+                    <strong>{(displayScan.result.confidence * 100).toFixed(2)}%</strong>
                   </div>
                   <div className="notice-box">ⓘ AI prediction based on the uploaded leaf image. Results may not always be accurate.</div>
                   <button className="primary-button full-button" onClick={() => setPage('treatment')}>View Treatment Guide →</button>
@@ -325,36 +625,46 @@ function App() {
 
         {page === 'treatment' && (
           <section className="page-content">
-            <PageHeading eyebrow="CROP CARE GUIDE" title="Treatment & Recommendation" description="Explore general steps to help protect your crops." />
+            <PageHeading
+              eyebrow="PERSONALIZED CROP CARE"
+              title="Treatment & Recommendation"
+              description="Care guidance based on your selected AI prediction."
+            />
 
             <div className="notice-box wide-notice">
-              ⓘ Recommendations below are general educational guidance, not a diagnosis of your uploaded image.
+              ⓘ AI recommendations are educational guidance. Confirm the disease with an agricultural expert before applying treatment.
             </div>
 
             <div className="treatment-grid">
               <div className="panel treatment-main">
                 <span className="treatment-icon">🌱</span>
-                <span className="result-label">CROP CARE</span>
-
-                <h2 className="treatment-title">
-                  Protect your plants with timely care
-                </h2>
-
-                <p>Start by checking affected leaves and getting advice from a local agricultural expert if symptoms spread.</p>
-
+                <span className="result-label">AI-BASED CROP CARE</span>
+                <h2 className="treatment-title">{treatmentGuide.title}</h2>
+                <p>{treatmentGuide.description}</p>
                 <h3>Recommended next steps</h3>
-                <GuideItem number="01" title="Inspect the crop" text="Check nearby plants for similar symptoms." />
-                <GuideItem number="02" title="Remove severely affected leaves" text="Use clean tools and dispose of plant material responsibly." />
-                <GuideItem number="03" title="Keep foliage dry where practical" text="Water near the soil and follow local crop guidance." />
-                <GuideItem number="04" title="Seek local expert advice" text="Confirm the cause before applying any treatment." />
+
+                {treatmentGuide.steps.map(([number, title, text]) => (
+                  <GuideItem
+                    key={number}
+                    number={number}
+                    title={title}
+                    text={text}
+                  />
+                ))}
               </div>
 
               <div className="panel prevention-panel">
                 <h3>🌿 Prevention tips</h3>
-                <Activity icon="💧" name="Water thoughtfully" date="Avoid excess moisture on leaves" good />
-                <Activity icon="🌞" name="Check sunlight" date="Follow crop-specific growing needs" good />
-                <Activity icon="🧤" name="Clean tools" date="Sanitize tools between plants" good />
-                <Activity icon="🔎" name="Monitor regularly" date="Look for early changes" good />
+
+                {treatmentGuide.tips.map((tip, index) => (
+                  <Activity
+                    key={tip}
+                    icon={['💧', '🌞', '🧤', '🔎'][index]}
+                    name={tip}
+                    date="Recommended crop care"
+                    good
+                  />
+                ))}
               </div>
             </div>
           </section>
@@ -362,22 +672,40 @@ function App() {
 
         {page === 'history' && (
           <section className="page-content">
-            <PageHeading eyebrow="YOUR ACTIVITY" title="Scan History" description="Review the image selected during this session." />
+            <PageHeading eyebrow="YOUR ACTIVITY" title="Scan History" description="Review all your saved crop scans." />
+
             <div className="panel history-panel">
               <div className="panel-heading">
-                <div><h3>Recent scans</h3><p>History for this demo session</p></div>
-                <span className="count-pill">{leaf ? '1 image selected' : '0 uploaded images'}</span>
+                <div><h3>Recent scans</h3><p>History saved in database</p></div>
+                <span className="count-pill">
+                  {scanHistory.length} {scanHistory.length === 1 ? 'scan' : 'scans'}
+                </span>
               </div>
 
-              {leaf ? (
-                <div className="history-row">
-                  <img src={preview} alt="Scan history" />
-                  <div className="history-info"><strong>{leaf.name}</strong><span>Uploaded in this session</span></div>
-                  <span className="history-tag">{result ? 'Analyzed' : 'Pending model'}</span>
-                  <button className="outline-button" onClick={() => setPage('result')}>View</button>
-                </div>
+              {scanHistory.length > 0 ? (
+                scanHistory.map((scan) => (
+                  <div className="history-row" key={scan.id}>
+                    {scan.preview ? (
+                      <img src={scan.preview} alt="Scan history" />
+                    ) : (
+                      <div className="activity-icon">🌿</div>
+                    )}
+                    <div className="history-info">
+                      <strong>{scan.name}</strong>
+                      <span>{scan.date}</span>
+                      <span>{scan.result.disease.replaceAll('_', ' ')}</span>
+                      <span>{(scan.result.confidence * 100).toFixed(2)}% confidence</span>
+                    </div>
+                    <span className="history-tag">Analyzed</span>
+                    <button className="outline-button" onClick={() => openScan(scan)}>View</button>
+                  </div>
+                ))
               ) : (
-                <EmptyState text="Your uploaded images will appear here." button="Upload your first leaf" onClick={() => setPage('upload')} />
+                <EmptyState
+                  text="Your analyzed scans will appear here."
+                  button="Upload your first leaf"
+                  onClick={() => setPage('upload')}
+                />
               )}
             </div>
           </section>
@@ -385,37 +713,48 @@ function App() {
 
         {page === 'dashboard' && (
           <section className="page-content">
-            <PageHeading eyebrow="INSIGHTS & OVERVIEW" title="Dashboard" description="A visual summary of crop scanning activity." />
+            <PageHeading eyebrow="INSIGHTS & OVERVIEW" title="Dashboard" description="A summary of your saved crop analysis." />
 
             <div className="stats-grid">
-              <StatCard icon="⌁" color="mint" label="Total Scans" value="128" note="Sample display data" />
-              <StatCard icon="♡" color="lime" label="Healthy Crops" value="86" note="Sample display data" />
-              <StatCard icon="⚠" color="peach" label="Disease Alerts" value="42" note="Sample display data" />
-              <StatCard icon="✚" color="lavender" label="Recommendations" value="36" note="Sample display data" />
+              <StatCard icon="⌁" color="mint" label="Total Scans" value={totalScans} note="Database records" />
+              <StatCard icon="♡" color="lime" label="Healthy Crops" value={healthyScans} note="Healthy predictions" />
+              <StatCard icon="⚠" color="peach" label="Disease Alerts" value={diseaseAlerts} note="Disease predictions" />
+              <StatCard icon="✚" color="lavender" label="Recommendations" value={diseaseAlerts} note="Scans to review" />
             </div>
 
             <div className="dashboard-grid">
               <div className="panel chart-panel">
                 <div className="panel-heading">
-                  <div><h3>Weekly Scan Activity</h3><p>Illustrative sample data</p></div>
-                  <span className="count-pill">This week</span>
+                  <div><h3>Recent Analysis</h3><p>Your latest database records</p></div>
+                  <button className="text-button" onClick={() => setPage('history')}>View history →</button>
                 </div>
-                <div className="chart">
-                  {[['Mon', 35], ['Tue', 55], ['Wed', 42], ['Thu', 78], ['Fri', 60], ['Sat', 88], ['Sun', 48]].map(([day, height]) => (
-                    <div className="chart-column" key={day}>
-                      <div className="bar-track"><div className="bar" style={{ height: `${height}%` }} /></div>
-                      <span>{day}</span>
-                    </div>
-                  ))}
-                </div>
+
+                {scanHistory.length > 0 ? (
+                  scanHistory.slice(0, 5).map((scan) => (
+                    <Activity
+                      key={scan.id}
+                      icon="🌿"
+                      name={`${scan.result.plant} - ${scan.result.disease.replaceAll('_', ' ')}`}
+                      date={scan.date}
+                      tag={`${(scan.result.confidence * 100).toFixed(1)}%`}
+                    />
+                  ))
+                ) : (
+                  <EmptyState text="No saved scans yet." button="Upload a leaf" onClick={() => setPage('upload')} />
+                )}
               </div>
 
               <div className="panel health-panel">
                 <h3>Crop Health Overview</h3>
-                <div className="donut"><div><strong>67%</strong><span>Healthy</span></div></div>
+                <div className="donut">
+                  <div>
+                    <strong>{totalScans ? Math.round((healthyScans / totalScans) * 100) : 0}%</strong>
+                    <span>Healthy</span>
+                  </div>
+                </div>
                 <div className="legend">
-                  <span><i className="legend-green" />Healthy <b>86</b></span>
-                  <span><i className="legend-orange" />Needs review <b>42</b></span>
+                  <span><i className="legend-green" />Healthy <b>{healthyScans}</b></span>
+                  <span><i className="legend-orange" />Needs review <b>{diseaseAlerts}</b></span>
                 </div>
               </div>
             </div>
@@ -430,21 +769,21 @@ function App() {
               <div>
                 <span className="hero-tag">FROM LEAF TO INSIGHT</span>
                 <h2>Technology supporting<br />healthier farming.</h2>
-                <p>AgroScan is a crop health screening interface concept designed to help farmers organize leaf images, review results, and learn about crop care.</p>
+                <p>AgroScan is a crop health screening system designed to help farmers organize leaf images, review AI results, and learn about crop care.</p>
               </div>
               <div className="about-emoji">🌾🌿</div>
             </div>
 
             <div className="steps-grid">
               <StepCard number="01" icon="📷" title="Upload a leaf" text="Choose a clear photo from your device." />
-              <StepCard number="02" icon="🤖" title="AI analysis" text="A connected model can evaluate image patterns." />
-              <StepCard number="03" icon="🔎" title="Review results" text="Check the prediction and confidence when available." />
+              <StepCard number="02" icon="🤖" title="AI analysis" text="The connected model evaluates image patterns." />
+              <StepCard number="03" icon="🔎" title="Review results" text="Check the prediction and confidence." />
               <StepCard number="04" icon="🌱" title="Explore care" text="Review guidance and consult local experts." />
             </div>
 
             <div className="panel about-note">
               <h3>Project status</h3>
-              <p>This frontend is a UI prototype. Real disease prediction, saved history, and personalized recommendations require integration with the project backend and model.</p>
+              <p>Crop predictions are processed by the backend AI model. Scan details are saved in the SQLite database and remain available after refreshing the page. Uploaded image files are not stored in the history database.</p>
             </div>
           </section>
         )}
